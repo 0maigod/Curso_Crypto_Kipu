@@ -1,0 +1,104 @@
+{
+	"compiler": {
+		"version": "0.8.30+commit.73712a01"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "mensaje",
+						"type": "string"
+					}
+				],
+				"name": "Mensaje_MensajeActualizado",
+				"type": "event"
+			},
+			{
+				"inputs": [],
+				"name": "getMensaje",
+				"outputs": [
+					{
+						"internalType": "string",
+						"name": "_mensaje",
+						"type": "string"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "_mensaje",
+						"type": "string"
+					}
+				],
+				"name": "setMensaje",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"author": "i3arba - 77 Innovation Labs ",
+			"custom:security": "Este es un contrato educativo y no debe ser usado en producción ",
+			"kind": "dev",
+			"methods": {
+				"getMensaje()": {
+					"returns": {
+						"_mensaje": "almacenado"
+					}
+				}
+			},
+			"title": "Contrato Mensaje ",
+			"version": 1
+		},
+		"userdoc": {
+			"events": {
+				"Mensaje_MensajeActualizado(string)": {
+					"notice": "evento emitido cuando el mensaje es actualizado"
+				}
+			},
+			"kind": "user",
+			"methods": {
+				"getMensaje()": {
+					"notice": "función get para devolver el mensaje almacenado"
+				}
+			},
+			"notice": "Este contrato es parte del primer proyecto del Ethereum Developer Pack ",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Modulo02/Proyecto01/saludo.sol": "Mensaje"
+		},
+		"evmVersion": "prague",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Modulo02/Proyecto01/saludo.sol": {
+			"keccak256": "0x732a00d357a3aae9b7ad79f899714d31c053fcdcfaa90976dae6468e7ce1f6ba",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://93af0753c9fc9e6bfbe6259b297e30cbb09271bfe12acf986baf76a8bfb4a1cf",
+				"dweb:/ipfs/QmdS9buFajDDotaJMqXq4DwB23Cwr45W241pYASGXgz7xy"
+			]
+		}
+	},
+	"version": 1
+}
