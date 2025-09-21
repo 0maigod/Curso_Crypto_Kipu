@@ -172,7 +172,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"Modulo02/Proyecto02/todolist.sol": "ToDoList"
+			"dApp_todoList/todolist.sol": "ToDoList"
 		},
 		"evmVersion": "prague",
 		"libraries": {},
@@ -186,7 +186,7 @@
 		"remappings": []
 	},
 	"sources": {
-		"Modulo02/Proyecto02/todolist.sol": {
+		"dApp_todoList/todolist.sol": {
 			"keccak256": "0xfe1c5eba807f071acdded130b5fa341a69e91bc178ddec9e0593611dd49c6b86",
 			"license": "MIT",
 			"urls": [
