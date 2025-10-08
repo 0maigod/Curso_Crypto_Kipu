@@ -38,6 +38,9 @@ contract KipuBank {
     /// @notice Se revierte si alguien envía ETH directo al contrato.
     error DirectDepositDisabled();
 
+    /// @notice Se revierte si se detecta un intento de reentrancy.
+    error ReentrancyDetected();
+
     /*//////////////////////////////////////////////////////////////
                             VARIABLES DE ESTADO
     //////////////////////////////////////////////////////////////*/
@@ -69,7 +72,7 @@ contract KipuBank {
     mapping(address => uint64) public withdrawalsBy;
 
     /// @dev Flag simple para protección reentrancy.
-    uint256 private _locked; // 0 = unlocked, 1 = locked
+    bool private _locked; // 0 = unlocked, 1 = locked
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTOS
@@ -96,7 +99,7 @@ contract KipuBank {
         if (_withdrawThreshold == 0 || _bankCap == 0) revert ZeroAmount();
         withdrawThreshold = _withdrawThreshold;
         bankCap = _bankCap;
-        _locked = 0;
+        _locked = false;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -105,10 +108,10 @@ contract KipuBank {
 
     /// @dev Evita reentrancy simple para funciones que mueven ETH.
     modifier nonReentrant() {
-        if (_locked == 1) revert TransferFailed(); // reutilizamos error genérico
-        _locked = 1;
+        if (_locked) revert ReentrancyDetected(); // reutilizamos error genérico
+        _locked = true;
         _;
-        _locked = 0;
+        _locked = false;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -129,11 +132,9 @@ contract KipuBank {
         // EFFECTS
         vault[msg.sender] += amount;
         totalReserves = newTotal;
-        unchecked {
-            depositCount += 1;
-            depositsBy[msg.sender] += 1;
-        }
-
+        depositCount += 1;
+        depositsBy[msg.sender] += 1;
+        
         // INTERACTIONS: no hay
         emit Deposit(msg.sender, amount);
     }
@@ -153,11 +154,9 @@ contract KipuBank {
         // EFFECTS
         vault[msg.sender] = balance - amount;
         totalReserves -= amount;
-        unchecked {
-            withdrawalCount += 1;
-            withdrawalsBy[msg.sender] += 1;
-        }
-
+        withdrawalCount += 1;
+        withdrawalsBy[msg.sender] += 1;
+        
         // INTERACTIONS
         _safeTransferNative(to, amount);
 
