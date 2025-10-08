@@ -45,6 +45,8 @@ Este proyecto se desplegó usando **Remix + Metamask**.
    - `_bankCap` → límite global de depósitos (en wei).
 7. Confirma en Metamask y copia la dirección del contrato.
 
+O despliegalo desde este link:
+[![Open in Remix](https://img.shields.io/badge/Open%20in-Remix-blue?logo=ethereum)](https://remix.ethereum.org/#version=soljson-v0.8.30.js&url=https://github.com/0maigod/Curso_Crypto_Kipu)
 ---
 
 ## 🔎 Verificación en block explorer
@@ -87,4 +89,5 @@ Una vez verificado el contrato, puedes interactuar directamente desde el **explo
 
 - Alumno: *Héctor Omar Ester*  
 - Proyecto: **KipuBank**  
+
 
