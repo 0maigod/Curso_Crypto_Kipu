@@ -129,10 +129,13 @@ contract KipuBankV2 is AccessControl, Pausable {
     /// @dev Se compara contra el valor en USD calculado con Chainlink en cada depósito de ETH.
     uint256 public bankCapUsdNative; // Mutable, actualizable en pausa por admin
 
-    /// @notice [NUEVO] Feed de Chainlink ETH/USD.
+    /// Decimales "canónicos" para reportes (USDC-like = 6)
+    uint8 public constant CANON_DECIMALS = 6;
+
+    /// @notice Feed de Chainlink ETH/USD.
     AggregatorV3Interface public ethUsdFeed;
 
-    /// @notice [NUEVO] Umbral de frescura (segundos) para considerar válido un precio.
+    /// @notice Umbral de frescura (segundos) para considerar válido un precio.
     uint256 public immutable priceStaleThreshold; // p.ej., 2 horas
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -367,10 +370,10 @@ contract KipuBankV2 is AccessControl, Pausable {
         nonReentrant
         whenNotPaused
     {
+        if (amount == 0) revert ZeroAmount();
         address t = address(token);
         TokenConfig memory cfg = tokenConfig[t];
         if (!cfg.enabled) revert TokenDisabled(t);
-        if (amount == 0) revert ZeroAmount();
 
         uint256 beforeBal = token.balanceOf(address(this));
         token.safeTransferFrom(msg.sender, address(this), amount);
@@ -414,6 +417,37 @@ contract KipuBankV2 is AccessControl, Pausable {
 
         emit TokenWithdrawal(t, msg.sender, to, amount);
     }
+
+    /// Escalado genérico entre decimales (sin redondeo "bankers", truncado)
+    function _scaleDecimals(
+        uint256 amount,
+        uint8 fromDec,
+        uint8 toDec
+    ) internal pure returns (uint256) {
+        if (fromDec == toDec) return amount;
+        if (fromDec > toDec) {
+            // reduce precisión
+            return amount / (10 ** (fromDec - toDec));
+        } else {
+            // aumenta precisión (cuidado con overflow en casos extremos)
+            return amount * (10 ** (toDec - fromDec));
+        }
+    }
+
+    /// Normaliza monto ERC-20 a 6 dec (USDC-like)
+    function _toCanonicalToken(address token, uint256 amount) 
+        internal 
+        view 
+        returns (uint256) {
+        // ETH usa address(0): 18 dec
+        if (token == NATIVE) {
+            return _scaleDecimals(amount, 18, CANON_DECIMALS);
+        }
+        uint8 d = tokenConfig[token].decimals; // cacheado en setTokenParams()
+        if (d == 0) { d = 18; } // fallback defensivo
+        return _scaleDecimals(amount, d, CANON_DECIMALS);
+    }
+
 
     /*//////////////////////////////////////////////////////////////
                           FUNCIONES DE LECTURA
@@ -462,6 +496,38 @@ contract KipuBankV2 is AccessControl, Pausable {
     {
         TokenConfig memory cfg = tokenConfig[token];
         return (totalReservesToken[token], cfg.cap, cfg.threshold, cfg.enabled, cfg.decimals);
+    }
+
+    /// @notice Devuelve el balance de un usuario expresado en formato canónico (6 decimales, tipo USDC).
+    /// @dev Convierte internamente el saldo real del usuario a la unidad contable estándar definida
+    ///      por `CANON_DECIMALS` (por defecto, 6). No modifica almacenamiento ni afecta el balance real.
+    ///      Esta función es útil para UIs o métricas donde se requiere comparar montos entre tokens
+    ///      con diferentes decimales (p. ej., 18, 8 o 6).
+    /// @param token Dirección del token (usar address(0) para ETH nativo).
+    /// @param user Dirección del usuario cuya bóveda se consulta.
+    /// @return canonicalBalance Monto del usuario convertido a formato canónico (6 decimales).
+    function balanceCanonical(address token, address user) 
+        external 
+        view 
+        returns (uint256 canonicalBalance) {
+        return _toCanonicalToken(token, balances[token][user]);
+    }
+
+    /// @notice Devuelve el total de reservas globales de un token en formato canónico (6 decimales, tipo USDC).
+    /// @dev Convierte el total almacenado del token (en sus unidades nativas) al formato estándar
+    ///      definido por `CANON_DECIMALS`. En el caso del activo nativo (ETH), se utiliza address(0)
+    ///      como identificador del token y se asumen 18 decimales.
+    ///      Esta vista es de utilidad para paneles administrativos o dashboards contables.
+    /// @param token Dirección del token a consultar (usar address(0) para ETH nativo).
+    /// @return canonicalReserves Total de reservas del token convertido a formato canónico (6 decimales).
+    function totalReservesCanonical(address token) 
+        external 
+        view 
+        returns (uint256 canonicalReserves) {
+        if (token == NATIVE) {
+            return _toCanonicalToken(NATIVE, totalReservesNative);
+        }
+        return _toCanonicalToken(token, totalReservesToken[token]);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
