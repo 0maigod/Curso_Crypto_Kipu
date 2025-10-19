@@ -1,0 +1,27 @@
+# Ignorar archivos generados automáticamente por Remix
+artifacts/
+.cache/
+.deps/
+.states/
+
+# Archivos de compilación y salida (Hardhat / Foundry, si los usas luego)
+out/
+cache/
+broadcast/
+
+# Dependencias locales (si llegas a usar npm o foundry)
+node_modules/
+lib/
+
+# Archivos de entorno o secretos (por si los agregas en el futuro)
+.env
+.env.local
+*.secrets.json
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Backups o temporales del editor
+*~
+*.swp
