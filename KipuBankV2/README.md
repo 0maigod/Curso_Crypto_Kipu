@@ -122,7 +122,7 @@ priceStaleThreshold:    7200                 // 2 horas
 
 ## 📜 Dirección del contrato desplegado
 
-- Dirección: **`0xbEbEe94302Ad793c060b3Bb2eF670dA3232fDE49`**  
-- Explorer: [Ver en Etherscan](https://sepolia.etherscan.io/address/0xbEbEe94302Ad793c060b3Bb2eF670dA3232fDE49)  
+- Dirección: **`0xD9C3A26E45f7103317bF508b8CA9E3f7E22e91f7`**  
+- Explorer: [Ver en Etherscan](https://sepolia.etherscan.io/address/0xD9C3A26E45f7103317bF508b8CA9E3f7E22e91f7)  
 
 ---
