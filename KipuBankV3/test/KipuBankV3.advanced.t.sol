@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.30;
 
-import "./KipuBankV3.t.base.sol";
+import { KipuBankV3 } from "../src/KipuBankV3.sol";
+import { KipuBankV3_TestBase } from "./KipuBankV3.t.base.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockERC20} from "./utils/MockERC20.sol";
-import {MockEthUsdFeed} from "./utils/MockEthUsdFeed.sol";
 
 
 contract Reenterer {
     KipuBankV3 public bank;
     constructor(KipuBankV3 _bank) { bank = _bank; }
+
     receive() external payable {
-        // intento de reentrar en deposit
         try bank.depositNative{value: 0.01 ether}() {} catch {}
     }
 }
@@ -89,13 +89,13 @@ contract KipuBankV3_AdvancedTest is KipuBankV3_TestBase {
 
     /* Reentrancy */
     function test_reentrancy_blocked_on_withdraw() public {
-        Reenterer atk = new Reenterer(bank);
+        Reenterer atk = new Reenterer(bank); // ✅ usa el `bank` de la base
         vm.deal(address(atk), 1 ether);
 
         vm.prank(address(atk));
         bank.depositNative{value: 0.5 ether}();
 
-        vm.expectRevert(); // ReentrancyDetected o revert genérico
+        vm.expectRevert();
         bank.withdrawNative(0.1 ether, payable(address(atk)));
     }
 

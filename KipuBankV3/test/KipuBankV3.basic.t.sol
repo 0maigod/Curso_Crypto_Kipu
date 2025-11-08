@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.30;
 
-import "./KipuBankV3.t.base.sol";
+import { KipuBankV3_TestBase } from "./KipuBankV3.t.base.sol";
 
 contract KipuBankV3_BasicTest is KipuBankV3_TestBase {
     /* Constructor & estado inicial */

@@ -1,16 +1,17 @@
 [profile.default]
-src = "src"
-out = "out"
-libs = ["lib"]
-solc_version = "0.8.30"      # tu pragma es ^0.8.30
-evm_version = "paris"        # opcional, estable
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 200
+src   = "src"
+test  = "test"
+out   = "out"
+libs  = ["lib"]
 
 remappings = [
-    "forge-std/=lib/forge-std/src/",
-    "@openzeppelin/=lib/openzeppelin-contracts/"
+  "forge-std/=lib/forge-std/src/",
+  "openzeppelin-contracts/=lib/openzeppelin-contracts/",
+  "@openzeppelin/=lib/openzeppelin-contracts/"
 ]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
-
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

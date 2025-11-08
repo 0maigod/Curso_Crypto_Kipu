@@ -123,7 +123,7 @@ contract KipuBankV3 is AccessControl, Pausable {
 
     /// @notice Umbral por retiro de ETH (fijo por transacción, en wei).
     /// @dev Inmutable como en tu diseño original.
-    uint256 public immutable withdrawThresholdNative;
+    uint256 public immutable WITHDRAW_THRESHOLD_NATIVE;
 
     /// @notice Bank cap global en **USD (8 decimales)** para las reservas de ETH.
     /// @dev Se compara contra el valor en USD calculado con Chainlink en cada depósito de ETH.
@@ -136,7 +136,7 @@ contract KipuBankV3 is AccessControl, Pausable {
     AggregatorV3Interface public ethUsdFeed;
 
     /// @notice Umbral de frescura (segundos) para considerar válido un precio.
-    uint256 public immutable priceStaleThreshold; // p.ej., 2 horas
+    uint256 public immutable PRICE_STALE_THRESHOLD; // p.ej., 2 horas
 
     /*//////////////////////////////////////////////////////////////////////////
                  ESTADO — CONTABILIDAD UNIFICADA (ETH + ERC-20)
@@ -247,10 +247,10 @@ contract KipuBankV3 is AccessControl, Pausable {
         if (_ethUsdFeed == address(0)) revert InvalidFeed(_ethUsdFeed);
         if (_priceStaleThreshold == 0) revert ZeroAmount();
 
-        withdrawThresholdNative = _withdrawThresholdNative;
+        WITHDRAW_THRESHOLD_NATIVE = _withdrawThresholdNative;
         bankCapUsdNative = _bankCapUsdNative;
         ethUsdFeed = AggregatorV3Interface(_ethUsdFeed);
-        priceStaleThreshold = _priceStaleThreshold;
+        PRICE_STALE_THRESHOLD = _priceStaleThreshold;
 
         _locked = false;
 
@@ -269,9 +269,17 @@ contract KipuBankV3 is AccessControl, Pausable {
 
     /// @dev Evita reentrancy simple para funciones que mueven ETH.
     modifier nonReentrant() {
-        if (_locked) revert ReentrancyDetected(); // reutilizamos error genérico
-        _locked = true;
+        _nonReentrantBefore();
         _;
+        _nonReentrantAfter();
+    }
+    
+    function _nonReentrantBefore() internal {
+        if (_locked) revert ReentrancyDetected();
+        _locked = true;
+    }
+
+    function _nonReentrantAfter() internal {
         _locked = false;
     }
 
@@ -312,7 +320,7 @@ contract KipuBankV3 is AccessControl, Pausable {
     {
         if (to == address(0)) revert InvalidRecipient();
         if (amount == 0) revert ZeroAmount();
-        if (amount > withdrawThresholdNative) revert ThresholdExceeded(amount, withdrawThresholdNative);
+        if (amount > WITHDRAW_THRESHOLD_NATIVE) revert ThresholdExceeded(amount, WITHDRAW_THRESHOLD_NATIVE);
 
         uint256 bal = balances[NATIVE][msg.sender];
         if (amount > bal) revert InsufficientBalance(amount, bal);
@@ -666,8 +674,8 @@ contract KipuBankV3 is AccessControl, Pausable {
         ) = ethUsdFeed.latestRoundData();
 
         if (price <= 0) revert InvalidPrice(address(ethUsdFeed));
-        if (block.timestamp - updatedAt > priceStaleThreshold) {
-            revert StalePrice(address(ethUsdFeed), updatedAt, priceStaleThreshold);
+        if (block.timestamp - updatedAt > PRICE_STALE_THRESHOLD) {
+            revert StalePrice(address(ethUsdFeed), updatedAt, PRICE_STALE_THRESHOLD);
         }
 
         // Escalas:
