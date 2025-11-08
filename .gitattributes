@@ -1,0 +1,12 @@
+*           text=auto
+*.sol       text eol=lf
+*.t.sol     text eol=lf
+*.toml      text eol=lf
+*.lock      text eol=lf
+*.md        text eol=lf
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+# Si usas scripts Windows, podés forzar CRLF:
+# *.bat     text eol=crlf
+# *.ps1     text eol=crlf
