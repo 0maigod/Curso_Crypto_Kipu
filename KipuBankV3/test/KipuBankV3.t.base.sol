@@ -4,8 +4,6 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {KipuBankV3} from "../src/KipuBankV3.sol";
 import {MockEthUsdFeed} from "./utils/MockEthUsdFeed.sol";
-// (Opcional para tests ERC20 en el avanzado)
-// import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title KipuBankV3_TestBase
@@ -56,7 +54,6 @@ abstract contract KipuBankV3_TestBase is Test {
 
     /// @notice Fuerza el feed a estar "stale" (vencido) respecto del STALE_THRESHOLD actual.
     function makePriceStale() internal {
-        // Aseguramos timestamp grande
         if (block.timestamp < 10 days) vm.warp(10 days);
         feed.setUpdatedAt(block.timestamp - STALE_THRESHOLD - 1);
     }
@@ -69,6 +66,7 @@ abstract contract KipuBankV3_TestBase is Test {
 
     /// @notice Helper para configurar tokens ERC-20 en el banco (si usás tests avanzados con ERC-20).
     /// @dev KipuBankV3 exige estar pausado y rol admin para setear parámetros.
+    
     function configureToken(address token, uint256 threshold, uint256 cap, bool enabled) internal {
         // El deployer (este contrato de test) tiene DEFAULT_ADMIN_ROLE
         bool wasPaused = bank.paused();

@@ -28,6 +28,17 @@ interface AggregatorV3Interface {
             uint80 answeredInRound
         );
 }
+// --- Uniswap V2 Router Interface ---
+interface IUniswapV2Router02 {
+    function WETH() external pure returns (address);
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external;
+}
 
 /// @title KipuBankV3 — bóvedas personales multi-token (ETH + ERC-20) con control de acceso, pausas y bank cap USD vía Chainlink.
 /// @author Héctor Omar Ester
@@ -97,6 +108,22 @@ contract KipuBankV3 is AccessControl, Pausable {
     /// @param newUsdTotal Total en USD hipotético si se aceptara el depósito.
     error CapUsdExceeded(uint256 capUsd, uint256 newUsdTotal);
 
+    // --- SWAP ERRORS --- //
+    /// @notice El router o parámetros de swap no fueron configurados correctamente.
+    error InvalidSwapConfig();
+
+    /// @notice El resultado del swap fue menor al mínimo permitido (slippage excesivo).
+    /// @param minOut Cantidad mínima esperada de USDC.
+    /// @param actualOut Cantidad de USDC efectivamente recibida.
+    error SlippageExceeded(uint256 minOut, uint256 actualOut);
+
+    /// @notice El swap no produjo salida (probablemente tokenIn sin liquidez).
+    error ZeroSwapOutput();
+
+    /// @notice La ruta de swap configurada es inválida.
+    error InvalidSwapPath(address tokenIn, address[] path);
+
+
     /*//////////////////////////////////////////////////////////////
                                ROLES
     //////////////////////////////////////////////////////////////*/
@@ -137,6 +164,14 @@ contract KipuBankV3 is AccessControl, Pausable {
 
     /// @notice Umbral de frescura (segundos) para considerar válido un precio.
     uint256 public immutable PRICE_STALE_THRESHOLD; // p.ej., 2 horas
+
+    /// @notice --- SWAP CONFIGURATION (UniswapV2 compatible) ---
+    IUniswapV2Router02 public router; // Router Uniswap V2 (ej. Sepolia)
+    address public USDC;              // Token USDC (6 decimales)
+    address public WETH;              // Token WETH9 (usado como puente)
+
+    /// @notice Rutas personalizadas por token
+    mapping(address => address[]) public pathOverride;
 
     /*//////////////////////////////////////////////////////////////////////////
                  ESTADO — CONTABILIDAD UNIFICADA (ETH + ERC-20)
@@ -227,6 +262,13 @@ contract KipuBankV3 is AccessControl, Pausable {
     /// @param oldCapUsd Valor anterior del tope (8 decimales).
     /// @param newCapUsd Nuevo valor del tope (8 decimales).
     event BankCapUsdUpdated(uint256 oldCapUsd, uint256 newCapUsd);
+
+    /// @notice --- SWAP EVENTS ---
+    event RouterUpdated(address indexed router);
+    event USDCUpdated(address indexed usdc);
+    event WETHUpdated(address indexed weth);
+    event PathOverrideSet(address indexed tokenIn, address[] path);
+
 
     /*//////////////////////////////////////////////////////////////////////////
                                    CONSTRUCTOR
@@ -335,6 +377,67 @@ contract KipuBankV3 is AccessControl, Pausable {
 
         emit WithdrawalNative(msg.sender, to, amount);
     }
+
+    /// @notice Permite depositar cualquier token ERC20 soportado por Uniswap V2
+    ///         El token se intercambia por USDC y se acredita al balance del usuario.
+    /// @param tokenIn Token ERC20 que deposita el usuario.
+    /// @param amountIn Cantidad del token de entrada.
+    /// @param minUsdcOut Mínimo USDC esperado (slippage tolerance).
+    /// @param deadline Timestamp límite para ejecutar el swap.
+    function depositViaSwap(
+        IERC20 tokenIn,
+        uint256 amountIn,
+        uint256 minUsdcOut,
+        uint256 deadline
+    )
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        if (amountIn == 0) revert ZeroAmount();
+        if (USDC == address(0) || address(router) == address(0) || WETH == address(0)) {
+            revert InvalidSwapConfig();
+        }
+
+        address tIn = address(tokenIn);
+
+        // --- Caso trivial: el usuario deposita directamente USDC ---
+        if (tIn == USDC) {
+            uint256 beforeBal = IERC20(USDC).balanceOf(address(this));
+            tokenIn.safeTransferFrom(msg.sender, address(this), amountIn);
+            uint256 received = IERC20(USDC).balanceOf(address(this)) - beforeBal;
+            if (received < minUsdcOut) revert SlippageExceeded(minUsdcOut, received);
+
+            _creditUsdc(msg.sender, received);
+            emit TokenDeposit(USDC, msg.sender, amountIn, received);
+            return;
+        }
+
+        // --- Transferencia y aprobación al router ---
+        tokenIn.safeTransferFrom(msg.sender, address(this), amountIn);
+        _safeApproveMax(tokenIn, address(router), amountIn);
+
+        // --- Resuelve la ruta ---
+        address[] memory path = _resolvePath(tIn);
+
+        // --- Realiza el swap y mide el delta real de USDC ---
+        uint256 beforeUsdc = IERC20(USDC).balanceOf(address(this));
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            minUsdcOut,
+            path,
+            address(this),
+            deadline
+        );
+        uint256 usdcReceived = IERC20(USDC).balanceOf(address(this)) - beforeUsdc;
+        if (usdcReceived == 0) revert ZeroSwapOutput();
+        if (usdcReceived < minUsdcOut) revert SlippageExceeded(minUsdcOut, usdcReceived);
+
+        _creditUsdc(msg.sender, usdcReceived);
+        emit TokenDeposit(USDC, msg.sender, amountIn, usdcReceived);
+    }
+
+
     /*//////////////////////////////////////////////////////////////////////////
                          FUNCIONES CORE (ERC-20)
     //////////////////////////////////////////////////////////////////////////*/
@@ -455,6 +558,37 @@ contract KipuBankV3 is AccessControl, Pausable {
         if (d == 0) { d = 18; } // fallback defensivo
         return _scaleDecimals(amount, d, CANON_DECIMALS);
     }
+
+    /// @notice Configura los parámetros básicos de swap (solo admin y en pausa)
+    function setSwapParams(address _usdc, address _router, address _weth)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        whenPaused
+    {
+        USDC = _usdc;
+        router = IUniswapV2Router02(_router);
+        WETH = _weth;
+
+        emit USDCUpdated(_usdc);
+        emit RouterUpdated(_router);
+        emit WETHUpdated(_weth);
+    }
+
+    /// @notice Configura una ruta personalizada para un token específico
+    function setPathOverride(address tokenIn, address[] calldata path)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        whenPaused
+    {
+        if (path.length < 2 || path[0] != tokenIn || path[path.length - 1] != USDC) {
+            revert InvalidSwapPath(tokenIn, path);
+        }
+
+        pathOverride[tokenIn] = path;
+        emit PathOverrideSet(tokenIn, path);
+    }
+
+
 
 
     /*//////////////////////////////////////////////////////////////
@@ -685,4 +819,44 @@ contract KipuBankV3 is AccessControl, Pausable {
         // forge-lint: disable-next-line(unsafe-typecast)
         usd8 = (amountWei * uint256(price)) / 1e18;
     }
+
+    /// @dev Determina la ruta del swap para un token dado.
+    ///      Si existe una ruta custom, la usa; sino genera [tokenIn, WETH, USDC].
+    function _resolvePath(address tokenIn) internal view returns (address[] memory path) {
+        address[] memory overrideP = pathOverride[tokenIn];
+        if (overrideP.length >= 2) return overrideP;
+
+        if (tokenIn == WETH) {
+            path = new address [](2);
+            path[0] = WETH;
+            path[1] = USDC;
+        } else {
+            path = new address [](3);
+            path[0] = tokenIn;
+            path[1] = WETH;
+            path[2] = USDC;
+        }
+        return path;
+    }
+
+    /// @dev Convierte el USDC recibido a USD (8 dec) y actualiza balances + cap.
+    function _creditUsdc(address user, uint256 usdcReceived) internal {
+        uint256 usdcAsUsd8 = usdcReceived * 100; // convierte 6 dec a 8 dec
+        uint256 currentUsd8 = totalReservesToken[USDC] * 100;
+        uint256 newUsd8 = currentUsd8 + usdcAsUsd8;
+
+        if (newUsd8 > bankCapUsdNative) revert CapUsdExceeded(bankCapUsdNative, newUsd8);
+
+        balances[USDC][user] += usdcReceived;
+        totalReservesToken[USDC] += usdcReceived;
+    }
+
+    /// @dev Aprobación segura y optimizada (solo actualiza si es necesario)
+    function _safeApproveMax(IERC20 token, address spender, uint256 amount) internal {
+        if (token.allowance(address(this), spender) < amount) {
+            token.approve(spender, 0);
+            token.approve(spender, type(uint256).max);
+        }
+    }
+
 }

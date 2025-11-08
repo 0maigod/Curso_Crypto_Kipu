@@ -23,7 +23,7 @@ contract KipuBankV3_AdvancedTest is KipuBankV3_TestBase {
         feed.setUpdatedAt(block.timestamp - STALE_THRESHOLD - 1);
 
         vm.prank(USER);
-        vm.expectRevert(); // o matcheá por selector si te funciona estable
+        vm.expectRevert();
         bank.depositNative{value: 0.1 ether}();
     }
 
@@ -48,7 +48,7 @@ contract KipuBankV3_AdvancedTest is KipuBankV3_TestBase {
         vm.warp(10 days);
         feed.setPrice(0); // o negativo si querés
         vm.prank(USER);
-        vm.expectRevert(); // InvalidPrice
+        vm.expectRevert();
         bank.depositNative{value: 0.1 ether}();
     }
 
@@ -65,7 +65,7 @@ contract KipuBankV3_AdvancedTest is KipuBankV3_TestBase {
 
         // A 3000e8 USD/ETH, 1 ETH = 3,000 USD > 1,000 USD → debe revertir por CapUsdExceeded
         vm.prank(USER);
-        vm.expectRevert(/* o selector si querés */);
+        vm.expectRevert();
         bank.depositNative{ value: 1 ether }();
     }
 
@@ -89,7 +89,7 @@ contract KipuBankV3_AdvancedTest is KipuBankV3_TestBase {
 
     /* Reentrancy */
     function test_reentrancy_blocked_on_withdraw() public {
-        Reenterer atk = new Reenterer(bank); // ✅ usa el `bank` de la base
+        Reenterer atk = new Reenterer(bank);
         vm.deal(address(atk), 1 ether);
 
         vm.prank(address(atk));

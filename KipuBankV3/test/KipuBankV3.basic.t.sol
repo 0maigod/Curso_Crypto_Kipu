@@ -49,7 +49,7 @@ contract KipuBankV3_BasicTest is KipuBankV3_TestBase {
         bank.depositNative{value: 1 ether}();
 
         vm.prank(USER);
-        vm.expectRevert(); // ThresholdExceeded
+        vm.expectRevert();
         bank.withdrawNative(WITHDRAW_THRESHOLD + 1, payable(USER));
 
         vm.prank(USER);
@@ -78,7 +78,7 @@ contract KipuBankV3_BasicTest is KipuBankV3_TestBase {
     /* Errores de entrada mínimos */
     function test_depositNative_zero_amount_reverts() public {
         vm.prank(USER);
-        vm.expectRevert(); // ZeroAmount
+        vm.expectRevert();
         bank.depositNative{value: 0}();
     }
 
@@ -87,7 +87,7 @@ contract KipuBankV3_BasicTest is KipuBankV3_TestBase {
         bank.depositNative{value: 1 ether}();
 
         vm.prank(USER);
-        vm.expectRevert(); // InvalidRecipient
+        vm.expectRevert();
         bank.withdrawNative(0.1 ether, payable(address(0)));
     }
 }
