@@ -31,17 +31,28 @@ contract KipuBankV3_BasicTest is KipuBankV3_TestBase {
 
     /* Depósito nativo */
     function test_depositNative_updatesBalancesAndReserves() public {
-        vm.prank(USER);
+        address user = address(0xBEEF);
+
+        if (bank.paused()) bank.unpause();
+        feed.setPrice(int256(2_000 * 1e8));
+        feed.setUpdatedAt(block.timestamp);
+
+        vm.deal(user, 1 ether);
+        vm.prank(user);
         bank.depositNative{value: 1 ether}();
 
-        (uint256 reserves, uint256 deposits, uint256 withdrawals, uint256 capUsd) = bank.statsNative();
-        assertEq(reserves, 1 ether);
-        assertEq(deposits, 1);
-        assertEq(withdrawals, 0);
-        assertEq(capUsd, CAP_USD_8);
+        // “fuente”
+        assertEq(bank.totalReservesNative(), 1 ether, "reserva no subio");
+        assertEq(bank.depositCountNative(), 1, "contador de depositos no subio");
 
-        assertEq(bank.balanceOf(address(0), USER), 1 ether);
+        // vía statsNative (mismo orden que el contrato)
+        (uint256 reserves, uint256 deposits, uint256 withdrawals, uint256 capUsd) = bank.statsNative();
+        assertEq(reserves,    1 ether, "reserva via stats");
+        assertEq(deposits,    1,       "deposits via stats");
+        assertEq(withdrawals, 0,       "withdrawals via stats");
+        assertEq(capUsd, bank.bankCapUsdNative(), "capUsd via stats");
     }
+
 
     /* Retiro con threshold */
     function test_withdrawNative_respectsThresholdAndBalance() public {

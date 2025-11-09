@@ -14,8 +14,6 @@ contract MockEthUsdFeed {
         _updatedAt = block.timestamp;
     }
 
-    // ---- API usada por tu contrato ----
-
     function decimals() external view returns (uint8) {
         return _decimals;
     }
@@ -32,7 +30,6 @@ contract MockEthUsdFeed {
             uint80
         )
     {
-        // startedAt lo simulamos con block.timestamp para simplificar
         return (0, _answer, block.timestamp, _updatedAt, 0);
     }
 
@@ -46,7 +43,6 @@ contract MockEthUsdFeed {
         _answer = p;
     }
 
-    // opcionalmente, por si tu contrato los consulta en el futuro:
     function description() external pure returns (string memory) { return "MOCK ETH/USD"; }
     function version() external pure returns (uint256) { return 1; }
 }

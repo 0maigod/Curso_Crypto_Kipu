@@ -11,7 +11,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 
 /*//////////////////////////////////////////////////////////////////////////
-                              IMPORTS CHAINLINK
+                              INTERFACES
 ////////////////////////////////////////////////////////////////////////////*/
 
 // Interfaz estándar de feeds Chainlink
@@ -78,6 +78,9 @@ contract KipuBankV3 is AccessControl, Pausable {
 
     /// @notice Se revierte si el destinatario es la dirección cero.
     error InvalidRecipient();
+
+    /// @notice Se revierte si el monto especificado es inválido (p.ej., cero).
+    error InvalidAmount();
 
     /// @notice Se revierte si alguien envía ETH directo al contrato.
     error DirectDepositDisabled();
@@ -286,7 +289,7 @@ contract KipuBankV3 is AccessControl, Pausable {
     ) {
         if (_withdrawThresholdNative == 0) revert ZeroAmount();
         if (_bankCapUsdNative == 0) revert ZeroAmount();
-        if (_ethUsdFeed == address(0)) revert InvalidFeed(_ethUsdFeed);
+        if (_ethUsdFeed == NATIVE) revert InvalidFeed(_ethUsdFeed);
         if (_priceStaleThreshold == 0) revert ZeroAmount();
 
         WITHDRAW_THRESHOLD_NATIVE = _withdrawThresholdNative;
@@ -340,14 +343,21 @@ contract KipuBankV3 is AccessControl, Pausable {
         uint256 amount = msg.value;
         if (amount == 0) revert ZeroAmount();
 
-        // CHECK: bank cap USD (ETH solamente)
-        uint256 newTotalWei = totalReservesNative + amount;
-        uint256 newTotalUsd = _weiToUsd(newTotalWei); // Convierte usando Chainlink (8 dec)
-        if (newTotalUsd > bankCapUsdNative) revert CapUsdExceeded(bankCapUsdNative, newTotalUsd);
+    // === CHECKS ===
+        if (msg.value == 0) revert InvalidAmount();
 
-        // EFFECTS
-        balances[NATIVE][msg.sender] += amount;
-        totalReservesNative = newTotalWei;
+        // Calcular valor del depósito en USD (8 decimales)
+        uint256 depositUsd8 = _weiToUsd(msg.value);
+
+        // Validar límite global (ETH + USDC)
+        uint256 newTotalUsd8 = _totalBankUsd8() + depositUsd8;
+        if (newTotalUsd8 > bankCapUsdNative) {
+            revert CapUsdExceeded(bankCapUsdNative, newTotalUsd8);
+        }
+
+        // === EFFECTS ===
+        balances[NATIVE][msg.sender] += msg.value;
+        totalReservesNative += msg.value;
         depositCountNative += 1;
 
         // INTERACTIONS: no hay
@@ -360,7 +370,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         nonReentrant
         whenNotPaused
     {
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         if (amount == 0) revert ZeroAmount();
         if (amount > WITHDRAW_THRESHOLD_NATIVE) revert ThresholdExceeded(amount, WITHDRAW_THRESHOLD_NATIVE);
 
@@ -395,7 +405,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         whenNotPaused
     {
         if (amountIn == 0) revert ZeroAmount();
-        if (USDC == address(0) || address(router) == address(0) || WETH == address(0)) {
+        if (USDC == NATIVE || address(router) == NATIVE || WETH == NATIVE) {
             revert InvalidSwapConfig();
         }
 
@@ -453,7 +463,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
-        if (token == address(0)) revert InvalidRecipient();
+        if (token == NATIVE) revert InvalidRecipient();
         if (threshold == 0 || cap == 0) revert ZeroAmount();
 
         TokenConfig storage cfg = tokenConfig[token];
@@ -504,14 +514,14 @@ contract KipuBankV3 is AccessControl, Pausable {
     /// @notice Retira un token ERC-20 habilitado hacia `to` respetando el umbral por transacción.
     /// @param token Interfaz del token.
     /// @param amount Monto a retirar.
-    /// @param to Destinatario (no puede ser address(0)).
+    /// @param to Destinatario (no puede ser NATIVE).
     function withdrawToken(IERC20 token, uint256 amount, address to)
         external
         nonReentrant
         whenNotPaused
     {
         address t = address(token);
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         if (amount == 0) revert ZeroAmount();
 
         TokenConfig memory cfg = tokenConfig[t];
@@ -550,7 +560,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         internal 
         view 
         returns (uint256) {
-        // ETH usa address(0): 18 dec
+        // ETH usa NATIVE: 18 dec
         if (token == NATIVE) {
             return _scaleDecimals(amount, 18, CANON_DECIMALS);
         }
@@ -694,7 +704,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
-        if (newFeed == address(0)) revert InvalidFeed(newFeed);
+        if (newFeed == NATIVE) revert InvalidFeed(newFeed);
         ethUsdFeed = AggregatorV3Interface(newFeed);
         emit EthUsdFeedUpdated(newFeed);
     }
@@ -722,7 +732,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         onlyRole(TREASURER_ROLE)
         whenPaused
     {
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         IERC20(token).safeTransfer(to, amount);
         emit ERC20Rescued(token, to, amount);
     }
@@ -735,7 +745,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         whenPaused
         nonReentrant // hooks del receptor
     {
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         token.safeTransferFrom(address(this), to, tokenId);
         emit ERC721Rescued(address(token), tokenId, to);
     }
@@ -748,7 +758,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         whenPaused
         nonReentrant
     {
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         token.safeTransferFrom(address(this), to, id, amount, data);
         emit ERC1155Rescued(address(token), id, amount, to);
     }
@@ -761,7 +771,7 @@ contract KipuBankV3 is AccessControl, Pausable {
         whenPaused
         nonReentrant
     {
-        if (to == address(0)) revert InvalidRecipient();
+        if (to == NATIVE) revert InvalidRecipient();
         uint256 bal = address(this).balance;
         if (bal <= totalReservesNative) return;
         uint256 surplus = bal - totalReservesNative;
@@ -788,8 +798,6 @@ contract KipuBankV3 is AccessControl, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Transferencia nativa segura usando `call`.
-    /// @param to Destinatario.
-    /// @param amount Monto en wei.
     /// @dev `private` para cumplir con el requisito y encapsular la interacción.
     function _safeTransferNative(address payable to, uint256 amount) private {
         (bool ok, ) = to.call{value: amount}("");
@@ -820,8 +828,8 @@ contract KipuBankV3 is AccessControl, Pausable {
         usd8 = (amountWei * uint256(price)) / 1e18;
     }
 
-    /// @dev Determina la ruta del swap para un token dado.
-    ///      Si existe una ruta custom, la usa; sino genera [tokenIn, WETH, USDC].
+    /// @notice Determina la ruta del swap para un token dado.
+    /// @dev     Si existe una ruta custom, la usa; sino genera [tokenIn, WETH, USDC].
     function _resolvePath(address tokenIn) internal view returns (address[] memory path) {
         address[] memory overrideP = pathOverride[tokenIn];
         if (overrideP.length >= 2) return overrideP;
@@ -839,16 +847,27 @@ contract KipuBankV3 is AccessControl, Pausable {
         return path;
     }
 
-    /// @dev Convierte el USDC recibido a USD (8 dec) y actualiza balances + cap.
+    /// @notice Convierte el USDC recibido a USD (8 dec) y actualiza balances + cap.
+    /// @dev Reverts:
+    ///         InvalidAmount(): si usdcReceived == 0.
+    ///         CapUsdExceeded(capUsd, attemptedUsd): si al acreditar se supera el límite global del banco.
+ 
     function _creditUsdc(address user, uint256 usdcReceived) internal {
-        uint256 usdcAsUsd8 = usdcReceived * 100; // convierte 6 dec a 8 dec
-        uint256 currentUsd8 = totalReservesToken[USDC] * 100;
-        uint256 newUsd8 = currentUsd8 + usdcAsUsd8;
+        // === CHECKS ===
+        if (usdcReceived == 0) revert InvalidAmount();
 
-        if (newUsd8 > bankCapUsdNative) revert CapUsdExceeded(bankCapUsdNative, newUsd8);
+        // USDC tiene 6 decimales; lo pasamos a USD con 8 decimales (x100) para comparar contra el cap global
+        uint256 newTotalUsd8 = _totalBankUsd8() + (usdcReceived * 100);
+        if (newTotalUsd8 > bankCapUsdNative) {
+            revert CapUsdExceeded(bankCapUsdNative, newTotalUsd8);
+        }
 
+        // === EFFECTS ===
         balances[USDC][user] += usdcReceived;
         totalReservesToken[USDC] += usdcReceived;
+
+        // === INTERACTIONS ===
+        emit TokenDeposit(USDC, user, usdcReceived, usdcReceived);
     }
 
     /// @dev Aprobación segura y optimizada (solo actualiza si es necesario)
@@ -857,6 +876,16 @@ contract KipuBankV3 is AccessControl, Pausable {
             token.approve(spender, 0);
             token.approve(spender, type(uint256).max);
         }
+    }
+
+    
+    /// @dev Calcula el valor total del banco expresado en USD con 8 decimales (USD * 1e8).
+    /// @return totalUsd8 Valor total combinado (ETH + USDC) expresado en USD * 1e8.
+    
+    function _totalBankUsd8() internal view returns (uint256) {
+        uint256 ethUsd8 = _weiToUsd(totalReservesNative);              // ETH → USD/8 (Chainlink)
+        uint256 usdcUsd8 = totalReservesToken[USDC] * 100;             // USDC 6→8
+        return ethUsd8 + usdcUsd8;
     }
 
 }
