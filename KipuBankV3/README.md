@@ -96,7 +96,7 @@ Al desplegar, ingresar:
 ```solidity
 withdrawThresholdNative: 100000000000000000  // 0.1 ETH
 bankCapUsdNative:       100000000000000000   // 100,000 USD * 1e8
-ethUsdFeed:             <dirección del feed ETH/USD>
+ethUsdFeed:             0x694AA1769357215DE4FAC081bf1f309aDC325306
 priceStaleThreshold:    7200                 // 2 horas
 ```
 
@@ -167,7 +167,9 @@ priceStaleThreshold:    7200                 // 2 horas
 | **Pérdida de liquidez de pares**    | Token sin ruta válida → revert                          | `pathOverride` configurable                   | ✅ Mitigado |
 | **Ataques administrativos**         | Mal uso de roles                                        | AccessControl granular, pausas obligatorias   | ⚠️ Requiere auditoría de gobernanza |
 
-### Pasos faltantes para madurez
+---
+
+## Pasos faltantes para madurez
 1. Auditoría formal externa (Slither + ConsenSys Diligence / Code4rena).  
 2. Test de estrés sobre múltiples tokens y rutas personalizadas.  
 3. Integración de un feed USDC/USD (redundancia oracular).  
@@ -189,8 +191,8 @@ priceStaleThreshold:    7200                 // 2 horas
 
 ## 📜 Dirección del contrato desplegado
 
-- Dirección: **`0xD9C3A26E45f7103317bF508b8CA9E3f7E22e91f7`**  
-- Explorer: [Ver en Etherscan](https://sepolia.etherscan.io/address/0xD9C3A26E45f7103317bF508b8CA9E3f7E22e91f7)  
+- Dirección: **`0x42440a558fDa75F4c7A3B9BaCc7B7Db497e4e82b`**  
+- Explorer: [Ver en Etherscan](https://sepolia.etherscan.io/address/0x42440a558fDa75F4c7A3B9BaCc7B7Db497e4e82b)  
 
 ---
 
